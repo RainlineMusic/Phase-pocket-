@@ -1,0 +1,2 @@
+#pragma once
+#define PHAS_LICENSE_API_URL "@PHASE_LICENSE_API_URL@"

@@ -1,0 +1,9 @@
+/build*/
+/JUCE/
+/juce-unpack/
+/*.zip
+/phase_fixture.f32
+/phase_stream.f32
+/phase_dsp_test
+/pluginval*
+/ui-captures/

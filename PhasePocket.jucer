@@ -1,0 +1,87 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<JUCERPROJECT id="PhPk01" name="PhasePocket" projectType="audioplug" version="0.1.0" companyName="Rainline Music" companyWebsite="https://rainlinemusic.su" companyEmail="contact@rainlinemusic.su" bundleIdentifier="ru.rainlinemusic.phasepocket" pluginName="Phase Pocket" pluginDesc="Selective phase peak optimizer" pluginManufacturer="Rainline Music" pluginManufacturerCode="RnLn" pluginCode="PhPk" pluginFormats="buildVST3,buildAAX,buildAU,buildStandalone" pluginCharacteristicsValue="" cppLanguageStandard="17" defines="PHASE_ENABLE_LICENSING=0 DUCK_ENABLE_OPENGL=1 JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0" headerPath="Config;Source">
+  <MAINGROUP id="PhRoot" name="PhasePocket">
+    <GROUP id="PhSource" name="Source">
+      <FILE id="PhS000" name="GlowRenderer.h" compile="0" resource="0" file="Source/GlowRenderer.h" />
+      <FILE id="PhS001" name="License.h" compile="0" resource="0" file="Source/License.h" />
+      <FILE id="PhS003" name="LicensePublicKey.h" compile="0" resource="0" file="Source/LicensePublicKey.h" />
+      <FILE id="PhS004" name="PhaseOptimizer.cpp" compile="1" resource="0" file="Source/PhaseOptimizer.cpp" />
+      <FILE id="PhS005" name="PhaseOptimizer.h" compile="0" resource="0" file="Source/PhaseOptimizer.h" />
+      <FILE id="PhS006" name="PluginEditor.cpp" compile="1" resource="0" file="Source/PluginEditor.cpp" />
+      <FILE id="PhS007" name="PluginEditor.h" compile="0" resource="0" file="Source/PluginEditor.h" />
+      <FILE id="PhS008" name="PluginProcessor.cpp" compile="1" resource="0" file="Source/PluginProcessor.cpp" />
+      <FILE id="PhS009" name="PluginProcessor.h" compile="0" resource="0" file="Source/PluginProcessor.h" />
+      <FILE id="PhS010" name="SoftwareGlow.h" compile="0" resource="0" file="Source/SoftwareGlow.h" />
+      <FILE id="PhS011" name="UIStyle.h" compile="0" resource="0" file="Source/UIStyle.h" />
+    </GROUP>
+    <GROUP id="PhAsset" name="Assets">
+      <FILE id="PhA0" name="Inter-Regular.ttf" compile="0" resource="1" file="Assets/Fonts/Inter-Regular.ttf" />
+      <FILE id="PhA1" name="Inter-Medium.ttf" compile="0" resource="1" file="Assets/Fonts/Inter-Medium.ttf" />
+      <FILE id="PhA2" name="DialLarge.png" compile="0" resource="1" file="Assets/Designer/DialLarge.png" />
+      <FILE id="PhA3" name="DialSmall.png" compile="0" resource="1" file="Assets/Designer/DialSmall.png" />
+    </GROUP>
+  </MAINGROUP>
+  <EXPORTFORMATS>
+    <XCODE_MAC targetFolder="Builds/MacOSX" extraCompilerFlags="">
+      <CONFIGURATIONS>
+        <CONFIGURATION name="Debug" isDebug="1" optimisation="1" targetName="Phase Pocket" headerPath="../../Config;../../Source" macOSDeploymentTarget="11.0" osxArchitecture="arm64,x86_64" />
+        <CONFIGURATION name="Release" isDebug="0" optimisation="3" targetName="Phase Pocket" headerPath="../../Config;../../Source" macOSDeploymentTarget="11.0" osxArchitecture="arm64,x86_64" />
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_audio_basics" path="../JUCE/modules" />
+        <MODULEPATH id="juce_audio_devices" path="../JUCE/modules" />
+        <MODULEPATH id="juce_audio_formats" path="../JUCE/modules" />
+        <MODULEPATH id="juce_audio_plugin_client" path="../JUCE/modules" />
+        <MODULEPATH id="juce_audio_processors" path="../JUCE/modules" />
+        <MODULEPATH id="juce_audio_utils" path="../JUCE/modules" />
+        <MODULEPATH id="juce_core" path="../JUCE/modules" />
+        <MODULEPATH id="juce_cryptography" path="../JUCE/modules" />
+        <MODULEPATH id="juce_data_structures" path="../JUCE/modules" />
+        <MODULEPATH id="juce_events" path="../JUCE/modules" />
+        <MODULEPATH id="juce_graphics" path="../JUCE/modules" />
+        <MODULEPATH id="juce_gui_basics" path="../JUCE/modules" />
+        <MODULEPATH id="juce_gui_extra" path="../JUCE/modules" />
+        <MODULEPATH id="juce_opengl" path="../JUCE/modules" />
+      </MODULEPATHS>
+    </XCODE_MAC>
+    <VS2022 targetFolder="Builds/VisualStudio2022" extraCompilerFlags="/utf-8">
+      <CONFIGURATIONS>
+        <CONFIGURATION name="Debug" isDebug="1" optimisation="1" targetName="Phase Pocket" headerPath="../../Config;../../Source" macOSDeploymentTarget="11.0" osxArchitecture="arm64,x86_64" />
+        <CONFIGURATION name="Release" isDebug="0" optimisation="3" targetName="Phase Pocket" headerPath="../../Config;../../Source" macOSDeploymentTarget="11.0" osxArchitecture="arm64,x86_64" />
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_audio_basics" path="../JUCE/modules" />
+        <MODULEPATH id="juce_audio_devices" path="../JUCE/modules" />
+        <MODULEPATH id="juce_audio_formats" path="../JUCE/modules" />
+        <MODULEPATH id="juce_audio_plugin_client" path="../JUCE/modules" />
+        <MODULEPATH id="juce_audio_processors" path="../JUCE/modules" />
+        <MODULEPATH id="juce_audio_utils" path="../JUCE/modules" />
+        <MODULEPATH id="juce_core" path="../JUCE/modules" />
+        <MODULEPATH id="juce_cryptography" path="../JUCE/modules" />
+        <MODULEPATH id="juce_data_structures" path="../JUCE/modules" />
+        <MODULEPATH id="juce_events" path="../JUCE/modules" />
+        <MODULEPATH id="juce_graphics" path="../JUCE/modules" />
+        <MODULEPATH id="juce_gui_basics" path="../JUCE/modules" />
+        <MODULEPATH id="juce_gui_extra" path="../JUCE/modules" />
+        <MODULEPATH id="juce_opengl" path="../JUCE/modules" />
+      </MODULEPATHS>
+    </VS2022>
+  </EXPORTFORMATS>
+  <MODULES>
+    <MODULE id="juce_audio_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1" />
+    <MODULE id="juce_audio_devices" showAllCode="1" useLocalCopy="0" useGlobalPath="1" />
+    <MODULE id="juce_audio_formats" showAllCode="1" useLocalCopy="0" useGlobalPath="1" />
+    <MODULE id="juce_audio_plugin_client" showAllCode="1" useLocalCopy="0" useGlobalPath="1" />
+    <MODULE id="juce_audio_processors" showAllCode="1" useLocalCopy="0" useGlobalPath="1" />
+    <MODULE id="juce_audio_utils" showAllCode="1" useLocalCopy="0" useGlobalPath="1" />
+    <MODULE id="juce_core" showAllCode="1" useLocalCopy="0" useGlobalPath="1" />
+    <MODULE id="juce_cryptography" showAllCode="1" useLocalCopy="0" useGlobalPath="1" />
+    <MODULE id="juce_data_structures" showAllCode="1" useLocalCopy="0" useGlobalPath="1" />
+    <MODULE id="juce_events" showAllCode="1" useLocalCopy="0" useGlobalPath="1" />
+    <MODULE id="juce_graphics" showAllCode="1" useLocalCopy="0" useGlobalPath="1" />
+    <MODULE id="juce_gui_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1" />
+    <MODULE id="juce_gui_extra" showAllCode="1" useLocalCopy="0" useGlobalPath="1" />
+    <MODULE id="juce_opengl" showAllCode="1" useLocalCopy="0" useGlobalPath="1" />
+  </MODULES>
+  <JUCEOPTIONS JUCE_WEB_BROWSER="0" JUCE_USE_CURL="0" JUCE_VST3_CAN_REPLACE_VST2="0" />
+</JUCERPROJECT>
