@@ -239,7 +239,7 @@ void PhasePocketAudioProcessorEditor::showSettingsMenu(){
     const double seconds[]{.5,1,2,5,10};for(int i=0;i<5;++i)hist.addItem(10+i,timeLabel(seconds[i]),true,std::abs(window-seconds[i])<.01);root.addSubMenu("Graph window",hist);
     const bool partial=audioProcessor.parameters.getRawParameterValue("partial")->load()>.5f;mode.addItem(20,"Strict",true,!partial);mode.addItem(21,"Partial improvement",true,partial);root.addSubMenu("Acceptance",mode);
     const bool precise=audioProcessor.parameters.getRawParameterValue("quality")->load()>.5f;quality.addItem(30,"4x true peak",true,!precise);quality.addItem(31,"8x true peak",true,precise);root.addSubMenu("Quality",quality);
-    root.addSeparator();root.addItem(0,"Analysis: 80 ms / linked stereo",false);root.addItem(0,"PDC: "+juce::String(audioProcessor.getLatencySamples()*1000./juce::jmax(1.,audioProcessor.getSampleRate()),1)+" ms (fixed)",false);
+    root.addSeparator();root.addItem(0,"Analysis: adaptive 40-120 ms / linked stereo",false);root.addItem(0,"PDC: "+juce::String(audioProcessor.getLatencySamples()*1000./juce::jmax(1.,audioProcessor.getSampleRate()),1)+" ms (fixed)",false);
 #if DUCK_ENABLE_OPENGL && ! JUCE_WINDOWS
     root.addItem(40,"OpenGL",true,glowRenderer!=nullptr);
 #endif

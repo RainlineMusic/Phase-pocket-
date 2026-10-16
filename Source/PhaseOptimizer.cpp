@@ -29,24 +29,27 @@ void Planner::fft(std::vector<std::complex<double>>& x,bool inverse){
 }
 void Planner::prepare(double rate){
     sr=std::isfinite(rate)?std::clamp(rate,8000.,384000.):48000.;
-    frameN=int(std::ceil(sr*.080));radius=std::max(128,int(std::ceil(sr*.010))); // 20 ms FIR support
+    nominalN=frameN=int(std::ceil(sr*.080));maximumN=int(std::ceil(sr*.120));
+    radius=std::max(128,int(std::ceil(sr*.040))); // 80 ms FIR support: accurate bass quadrature
     guard=radius+PeakKernel::half*2+64;
     fftN=1;while(fftN<snapshotSize()+2*radius)fftN*=2;
     kernel.assign(size_t(fftN),{});fftWork=kernel;
     for(int k=-radius;k<=radius;++k)if(k!=0&&std::abs(k)%2==1)kernel[size_t(k+radius)]=2./(pi*k)*kaiser(double(k)/radius,8.6);
     fft(kernel,false);
-    for(auto* set:{&q,&a,&b,&candidate})for(auto& v:*set)v.assign(size_t(snapshotSize()),0.f);
+    for(auto* set:{&q,&a,&candidate})for(auto& v:*set)v.assign(size_t(snapshotSize()),0.f);
     weight.assign(size_t(snapshotSize()),0.f);
-    const size_t count=size_t(frameN+2*PeakKernel::half)*PeakKernel::phases*2;
-    peakDry.resize(count);peakA.resize(count);peakB.resize(count);
 }
 void Planner::spectrum(const std::array<std::vector<float>,2>& x,std::array<double,bands>& out){
     out.fill(0.);
     for(int c=0;c<2;++c){std::fill(fftWork.begin(),fftWork.end(),std::complex<double>{});
-        for(int i=0;i<frameN;++i)fftWork[size_t(i)]=x[size_t(c)][size_t(guard+i)];
+        // Include unchanged context: a short rectangular crop of a rotated
+        // bass cycle has a different spectrum even for an ideal allpass.
+        for(int i=0;i<snapshotSize();++i)fftWork[size_t(i)]=x[size_t(c)][size_t(i)];
         fft(fftWork,false);
         for(int k=1;k<fftN/2;++k){const double hz=double(k)*sr/fftN;
-            const int band=std::clamp(int(std::log2(std::max(20.,hz)/20.)*bands/std::log2(sr*.5/20.)),0,bands-1);
+            // A 40–120 ms event cannot resolve narrow bass bands reliably.
+            // Pool sub-120 Hz energy; retain logarithmic detail above it.
+            const int band=hz<120.?0:std::clamp(1+int(std::log2(hz/120.)*(bands-1)/std::log2(sr*.5/120.)),1,bands-1);
             out[size_t(band)]+=std::norm(fftWork[size_t(k)]);
         }
     }
@@ -80,14 +83,20 @@ bool Planner::guards(const Job& job,Report& report){
     }
     std::array<double,bands> spectrumOut{};spectrum(candidate,spectrumOut);
     double total=0;for(auto v:drySpectrum)total+=v;
-    report.spectralError=0;
+    report.spectralError=0;double weightedError=0;
     for(int k=0;k<bands;++k){const double x=drySpectrum[size_t(k)],y=spectrumOut[size_t(k)];
         if(x<total*1.e-7){if(y>total*1.e-6)return false;continue;}
-        report.spectralError=std::max(report.spectralError,float(std::abs(energyDb(y,x))));
+        const double error=std::abs(energyDb(y,x));
+        // Weak finite-window bands can change with phase alone. Bound both
+        // the energy-weighted log error and any individual active band.
+        if(error>std::max(3.,30.*tolerance))return false;
+        weightedError+=x*error*error;
     }
+    report.spectralError=float(std::sqrt(weightedError/std::max(total,1.e-20)));
     return report.spectralError<=std::max(.6,6.*tolerance);
 }
 void Planner::render(const Job& job,Plan& plan){
+    frameN=job.length>0?std::clamp(job.length,int(std::ceil(sr*.040)),maximumN):nominalN;plan.length=frameN;
     plan.epoch=job.epoch;plan.revision=job.revision;plan.frame=job.frame;plan.report={};
     for(int c=0;c<2;++c)std::copy_n(job.input[size_t(c)].begin()+guard,frameN,plan.output[size_t(c)].begin());
     const int begin=guard-PeakKernel::half,end=guard+frameN+PeakKernel::half;
@@ -105,22 +114,35 @@ void Planner::render(const Job& job,Plan& plan){
     for(int c=0;c<2;++c){const auto& x=job.input[size_t(c)];double mean=0,nyquist=0;for(int i=0;i<snapshotSize();++i){mean+=x[size_t(i)];nyquist+=(i%2?-1.:1.)*x[size_t(i)];}mean/=snapshotSize();nyquist/=snapshotSize();
         std::fill(fftWork.begin(),fftWork.end(),std::complex<double>{});for(int i=0;i<snapshotSize();++i)fftWork[size_t(i)]=x[size_t(i)];
         fft(fftWork,false);for(int i=0;i<fftN;++i)fftWork[size_t(i)]*=kernel[size_t(i)];fft(fftWork,true);
-        for(int i=0;i<snapshotSize();++i){q[size_t(c)][size_t(i)]=float(fftWork[size_t(i+radius)].real());a[size_t(c)][size_t(i)]=weight[size_t(i)]*float(x[size_t(i)]-mean-nyquist*(i%2?-1.:1.));b[size_t(c)][size_t(i)]=weight[size_t(i)]*q[size_t(c)][size_t(i)];}
+        for(int i=0;i<snapshotSize();++i){q[size_t(c)][size_t(i)]=float(fftWork[size_t(i+radius)].real());a[size_t(c)][size_t(i)]=float(x[size_t(i)]-mean-nyquist*(i%2?-1.:1.));}
     }
-    size_t pos=0;for(int c=0;c<2;++c)for(int i=begin;i<end;++i)for(int p=0;p<PeakKernel::phases;p+=stride){peakDry[pos]=tp.interpolate(job.input[size_t(c)],i,p);peakA[pos]=tp.interpolate(a[size_t(c)],i,p);peakB[pos]=tp.interpolate(b[size_t(c)],i,p);++pos;}
     spectrum(job.input,drySpectrum);
     const double minimum=dbToGain(-.2f),target=threshold*dbToGain(-.1f);
     double best=dryPeak,searchBest=dryPeak;float bestAngle=0,searchCentre=0;Report bestReport=plan.report;
-    auto trial=[&](float degrees){if(std::abs(degrees)<.01f)return;const double angle=degrees*pi/180.,co=std::cos(angle)-1.,si=-std::sin(angle);double pk=0;
-        const double limit=best;
-        for(size_t i=0;i<pos;++i){pk=std::max(pk,std::abs(peakDry[i]+co*peakA[i]+si*peakB[i]));if(pk>=limit)return;}
+    auto synthesize=[&](float degrees){
+        const double angle=degrees*pi/180.,plateauCos=std::cos(angle)-1.,plateauSin=-std::sin(angle);
+        double nativePeak=0;
+        for(int i=0;i<snapshotSize();++i){const double w=weight[size_t(i)];
+            const double co=w==1.?plateauCos:std::cos(angle*w)-1.,si=w==1.?plateauSin:-std::sin(angle*w);
+            for(int c=0;c<2;++c){const float x=job.input[size_t(c)][size_t(i)];
+                // Interpolate the angle, not dry/wet amplitudes: the latter
+                // cancels energy at transitions even for ideal quadrature.
+                const float y=w==0.?x:float(x+co*a[size_t(c)][size_t(i)]+si*q[size_t(c)][size_t(i)]);
+                candidate[size_t(c)][size_t(i)]=y;
+                if(i>=begin&&i<end)nativePeak=std::max(nativePeak,double(std::abs(y)));
+            }
+        }
+        return nativePeak;
+    };
+    auto trial=[&](float degrees){if(std::abs(degrees)<.01f)return;
+        const double pk=synthesize(degrees);
         if(pk<searchBest){searchBest=pk;searchCentre=degrees;}
-        if(pk>dryPeak*minimum||(!job.settings.partial&&pk>target))return;
-        for(int c=0;c<2;++c)for(int i=0;i<snapshotSize();++i)candidate[size_t(c)][size_t(i)]=float(job.input[size_t(c)][size_t(i)]+co*a[size_t(c)][size_t(i)]+si*b[size_t(c)][size_t(i)]);
-        // Validate the actual float waveform as well as the linear basis model.
-        double actual=0;for(int c=0;c<2;++c)actual=std::max(actual,tp.peak(candidate[size_t(c)],begin,end,stride));
-        if(actual>=limit||actual>dryPeak*minimum||(!job.settings.partial&&actual>target))return;
+        // Native peak is only a lower bound. Every accepted candidate is
+        // measured again with the reconstruction kernel on its float output.
+        if(pk>=best||pk>dryPeak*minimum||(!job.settings.partial&&pk>target))return;
         Report report=plan.report;if(!guards(job,report))return;
+        double actual=0;for(int c=0;c<2;++c)actual=std::max(actual,tp.peak(candidate[size_t(c)],begin,end,stride));
+        if(actual>=best||actual>dryPeak*minimum||(!job.settings.partial&&actual>target))return;
         best=actual;bestAngle=degrees;bestReport=report;
     };
     const float maximum=std::clamp(job.settings.maxAngle,0.f,90.f);
@@ -128,23 +150,51 @@ void Planner::render(const Job& job,Plan& plan){
     trial(maximum);trial(-maximum);
     if(searchCentre!=0){const float centre=searchCentre;for(int k=-4;k<=4;++k)trial(std::clamp(centre+float(k),-maximum,maximum));}
     if(bestAngle==0)return;
-    const double angle=bestAngle*pi/180.,co=std::cos(angle)-1.,si=-std::sin(angle);
-    for(int c=0;c<2;++c)for(int i=0;i<frameN;++i){const int n=guard+i;plan.output[size_t(c)][size_t(i)]=float(job.input[size_t(c)][size_t(n)]+co*a[size_t(c)][size_t(n)]+si*b[size_t(c)][size_t(n)]);}
+    synthesize(bestAngle);
+    for(int c=0;c<2;++c)std::copy_n(candidate[size_t(c)].begin()+guard,frameN,plan.output[size_t(c)].begin());
     plan.report=bestReport;plan.report.outPeak=float(best);plan.report.angle=bestAngle;plan.report.decision=Decision::accepted;
 }
 void Engine::stop(){running.store(false,std::memory_order_release);if(worker.joinable())worker.join();}
 void Engine::prepare(double rate){
-    stop();planner.prepare(rate);frameN=planner.frameSize();guard=planner.guardSize();
-    // Fixed PDC: full 80 ms tile + both guards + 120 ms worker budget.
+    stop();planner.prepare(rate);frameN=planner.frameSize();guard=planner.guardSize();maximumN=planner.maximumFrameSize();
+    // Fixed PDC covers the longest adaptive span, FIR context and worker budget.
     const double sr=std::isfinite(rate)?std::clamp(rate,8000.,384000.):48000.;
-    latencyN=frameN+2*guard+int(std::ceil(sr*.120));ringN=latencyN+frameN+2*guard+1;
+    minimumN=int(std::ceil(sr*.040));probeN=int(std::ceil(sr*.027));
+    latencyN=maximumN+2*guard+int(std::ceil(sr*.120));ringN=latencyN+maximumN+2*guard+1;
     delay.assign(size_t(ringN),{});
     for(auto& j:jobs)for(auto& x:j.input)x.assign(size_t(planner.snapshotSize()),0.f);
-    for(auto& p:plans)for(auto& x:p.output)x.assign(size_t(frameN),0.f);
-    jobWrite=0;jobRead=0;planWrite=0;planRead=0;completedSerial=0;position=0;++epoch;active=false;activeAccepted=false;current={};accepted=0;skipped=0;late=0;
+    for(auto& p:plans)for(auto& x:p.output)x.assign(size_t(maximumN),0.f);
+    jobWrite=0;jobRead=0;planWrite=0;planRead=0;completedSerial=0;position=0;spanWrite=spanRead=nextStart=playbackStart=playbackEnd=0;++epoch;active=false;activeAccepted=false;current={};accepted=0;skipped=0;late=0;
     running=true;worker=std::thread([this]{run();});
 }
-void Engine::reset() noexcept {++epoch;position=0;active=false;activeAccepted=false;current={};/* negative timestamps read as exact zero; no RT clear/allocation */}
+void Engine::reset() noexcept {
+    ++epoch;position=0;spanWrite=spanRead=nextStart=playbackStart=playbackEnd=0;
+    // Release published slots; an old in-flight job is discarded by epoch.
+    planRead.store(planWrite.load(std::memory_order_acquire),std::memory_order_release);
+    active=false;activeAccepted=false;current={};
+}
+int Engine::boundaryLength() const noexcept {
+    // Place joins in low-energy regions using already buffered context.
+    // Rolling energy is O(maximum span), with no allocations or FFT on audio.
+    const auto power=[&](int i){const auto x=inputAt(std::int64_t(nextStart)+i);return double(x.l)*x.l+double(x.r)*x.r;};
+    const double samplesPerMs=frameN/80.;
+    const int transitionMinimum=int(samplesPerMs*(2.*settings.transitionMs+5.))+2*(PeakKernel::half*2+8);
+    const int first=std::max(minimumN,std::min(frameN,transitionMinimum));
+    double energy=0;for(int i=first-probeN;i<first+probeN;++i)energy+=power(i);
+    double best=std::numeric_limits<double>::infinity();int length=frameN;
+    const int step=std::max(1,frameN/80);
+    for(int n=first;n<=maximumN;++n){
+        if(n==frameN||(n-first)%step==0||n==maximumN){
+            const double distance=double(n-frameN)/frameN;
+            // Tiny regularisation chooses the nominal length in silence.
+            const double score=std::max(0.,energy)*(1.+.15*distance*distance)+1.e-16*distance*distance;
+            if(score<best){best=score;length=n;}
+        }
+        energy+=power(n+probeN)-power(n-probeN);
+    }
+    return length;
+}
+
 void Engine::configure(const Settings& s) noexcept {if(!(s==settings)){settings=s;++revision;}}
 Stereo Engine::inputAt(std::int64_t p) const noexcept {if(p<0)return {};return delay[size_t(std::uint64_t(p)%std::uint64_t(ringN))];}
 void Engine::run(){
@@ -176,22 +226,26 @@ Sample Engine::process(Stereo x,bool offline) noexcept {
     if(!std::isfinite(x.l))x.l=0;
     if(!std::isfinite(x.r))x.r=0;
     delay[size_t(position%std::uint64_t(ringN))]=x;
-    // The snapshot is copied into a preallocated queue slot exactly once/tile.
-    if(position+1>=std::uint64_t(frameN+guard)&&(position+1-std::uint64_t(guard))%std::uint64_t(frameN)==0){
-        const auto frame=(position+1-std::uint64_t(guard))/std::uint64_t(frameN)-1;
+    // Each descriptor exists even if a worker queue is full. A missed plan
+    // therefore keeps its entire span dry and is never injected halfway in.
+    if(position+1>=nextStart+std::uint64_t(maximumN+guard)){
+        const int length=boundaryLength();
+        spans[size_t(spanWrite%spans.size())]={nextStart,length};++spanWrite;
         const auto write=jobWrite.load(std::memory_order_relaxed);
-        if(write-jobRead.load(std::memory_order_acquire)<capacity){auto& j=jobs[size_t(write%capacity)];j.epoch=epoch;j.revision=revision;j.frame=frame;j.settings=settings;
-            const auto first=std::int64_t(frame*std::uint64_t(frameN))-guard;
+        if(write-jobRead.load(std::memory_order_acquire)<capacity){auto& j=jobs[size_t(write%capacity)];j.epoch=epoch;j.revision=revision;j.frame=nextStart;j.length=length;j.settings=settings;
+            const auto first=std::int64_t(nextStart)-guard;
             for(int i=0;i<planner.snapshotSize();++i){const auto v=inputAt(first+i);j.input[0][size_t(i)]=v.l;j.input[1][size_t(i)]=v.r;}
             jobWrite.store(write+1,std::memory_order_release);
-            // Hosts may set non-realtime after prepareToPlay. Only offline
-            // rendering waits; search always remains on the same worker.
             if(offline)while(running.load(std::memory_order_acquire)&&completedSerial.load(std::memory_order_acquire)<write+1)std::this_thread::yield();
         }
+        nextStart+=std::uint64_t(length);
     }
     const auto outPos=std::int64_t(position)-latencyN;const Stereo dry=inputAt(outPos);Stereo out=dry;
-    if(outPos>=0){const auto index=std::uint64_t(outPos)%std::uint64_t(frameN);if(index==0)choose(std::uint64_t(outPos)/std::uint64_t(frameN));
-        if(activeAccepted){const auto& p=plans[size_t(activeSlot%capacity)];out={p.output[0][size_t(index)],p.output[1][size_t(index)]};}
+    if(outPos>=0){const auto at=std::uint64_t(outPos);
+        if(at>=playbackEnd&&spanRead<spanWrite){const auto span=spans[size_t(spanRead%spans.size())];++spanRead;
+            playbackStart=span.start;playbackEnd=span.start+std::uint64_t(span.length);choose(span.start);
+        }
+        if(activeAccepted&&at>=playbackStart&&at<playbackEnd){const auto& p=plans[size_t(activeSlot%capacity)];const auto index=size_t(at-playbackStart);out={p.output[0][index],p.output[1][index]};}
     }
     ++position;return {dry,out,current};
 }

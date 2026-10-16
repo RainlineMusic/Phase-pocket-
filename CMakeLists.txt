@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(PhasePocket VERSION 0.1.0 LANGUAGES C CXX)
+project(PhasePocket VERSION 0.1.1 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(PHASE_DSP_ONLY "Build portable DSP tests without JUCE" OFF)

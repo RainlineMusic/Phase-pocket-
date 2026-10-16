@@ -62,6 +62,22 @@ static void testStreaming(){
     for(int polarity:{-1,0}){engine.reset();for(int i=0;i<count;++i){const auto v=engine.process({input[size_t(i)].l,float(polarity)*input[size_t(i)].l},true);require(v.out.r==float(polarity)*v.out.l,"M/S or silent-channel invariance");}}
     std::ofstream f("phase_stream.f32",std::ios::binary);for(int i=engine.latency();i<count;++i){const float pair[]{input[size_t(i-engine.latency())].l,output[size_t(i)].l};f.write(reinterpret_cast<const char*>(pair),sizeof(pair));}
 }
+// A transient exactly at the former fixed 80 ms join must not be dry-locked.
+static void testBoundaryPeaks(){
+    for(int offset:{-48,0,48,503}){
+        Engine e;e.prepare(48000);Settings settings;settings.threshold=-2;e.configure(settings);
+        const int n=12000,centre=3840+offset;std::vector<Stereo> input(size_t(n),Stereo{});
+        double dry=0,wet=0;
+        for(int i=0;i<n;++i){const double t=double(i-centre)/48000.,a=2*pi*261*t,env=std::exp(-std::pow(t/.012,4.));
+            const float x=float(.75*env*(.8*std::cos(a)+.3*std::cos(2*a+1.8)+.16*std::cos(3*a-.9)));input[size_t(i)]={x,x};dry=std::max(dry,double(std::abs(x)));}
+        std::ofstream fixture;if(offset==0)fixture.open("phase_boundary.f32",std::ios::binary);
+        for(int i=0;i<n+e.latency();++i){const auto y=e.process(i<n?input[size_t(i)]:Stereo{},true);
+            if(i>=e.latency()){const int at=i-e.latency();wet=std::max(wet,double(std::abs(y.out.l)));
+                if(fixture.is_open()){const float pair[]{input[size_t(at)].l,y.out.l};fixture.write(reinterpret_cast<const char*>(pair),sizeof(pair));}}}
+        require(e.accepted>0&&e.late==0,"boundary event skipped or late");require(wet<dry*dbToGain(-.2f),"boundary peak remains dry-locked");
+        std::cout<<"boundary offset="<<offset<<" saved="<<toDb(dry)-toDb(wet)<<" dB\n";
+    }
+}
 static void testRealtimeFallbackAndAllocations(){
     Engine e;e.prepare(48000);Settings s;s.threshold=-4;e.configure(s);audioAllocations=0;
     bool fallbackExact=true,finite=true;audioAllocationProbe=true;
@@ -75,5 +91,5 @@ static void testRealtimeFallbackAndAllocations(){
 int main(){try{
     PeakKernel k;std::vector<float> dc(512,1.f);require(std::abs(k.peak(dc,40,470)-1.)<1.e-6,"TP DC calibration");
     for(double rate:{44100.,48000.,96000.,192000.}){testNoOp(rate);std::cout<<"null/bypass/reset @ "<<rate<<" PASS\n";}
-    testCandidates();testStreaming();testRealtimeFallbackAndAllocations();std::cout<<"PASS\n";
+    testCandidates();testStreaming();testBoundaryPeaks();testRealtimeFallbackAndAllocations();std::cout<<"PASS\n";
 }catch(const std::exception& e){std::cerr<<"FAIL: "<<e.what()<<'\n';return 1;}}

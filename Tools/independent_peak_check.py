@@ -5,7 +5,7 @@ Run PhaseDSPTests first, then this script in the same working directory.
 from pathlib import Path
 import numpy as np
 from scipy.signal import resample_poly
-for name in ["phase_fixture.f32", "phase_stream.f32"]:
+for name in ["phase_fixture.f32", "phase_stream.f32", "phase_boundary.f32"]:
     path = Path(name)
     if not path.exists():
         raise SystemExit(f"Missing {name}; run PhaseDSPTests first")

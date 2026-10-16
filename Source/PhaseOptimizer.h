@@ -40,11 +40,13 @@ struct Job {
     std::array<std::vector<float>,2> input;
     Settings settings;
     std::uint64_t epoch=0,revision=0,frame=0;
+    int length=0;
 };
 struct Plan {
     std::array<std::vector<float>,2> output;
     Report report;
     std::uint64_t epoch=0,revision=0,frame=0;
+    int length=0;
 };
 // All allocation is in prepare(). The planner is owned exclusively by the
 // worker. Input includes FIR pre-roll/post-roll and interpolation support.
@@ -52,16 +54,16 @@ class Planner {
 public:
     void prepare(double rate);
     void render(const Job&,Plan&);
-    int frameSize() const noexcept {return frameN;}
+    int frameSize() const noexcept {return nominalN;}
+    int maximumFrameSize() const noexcept {return maximumN;}
     int guardSize() const noexcept {return guard;}
-    int snapshotSize() const noexcept {return frameN+2*guard;}
+    int snapshotSize() const noexcept {return maximumN+2*guard;}
 private:
-    double sr=48000.;int frameN=3840,radius=512,guard=600,fftN=8192;
+    double sr=48000.;int frameN=3840,nominalN=3840,maximumN=5760,radius=512,guard=600,fftN=8192;
     PeakKernel tp;
     std::vector<std::complex<double>> kernel,fftWork;
-    std::array<std::vector<float>,2> q,a,b,candidate;
+    std::array<std::vector<float>,2> q,a,candidate;
     std::vector<float> weight;
-    std::vector<double> peakDry,peakA,peakB;
     static constexpr int bands=18;
     std::array<double,bands> drySpectrum{};
     static void fft(std::vector<std::complex<double>>&,bool);
@@ -69,7 +71,7 @@ private:
     bool guards(const Job&,Report&);
 };
 struct Sample {Stereo dry,out;Report report;};
-// Two bounded SPSC queues; no locks, allocation, OS signalling or DSP search
+// Two bounded SPSC queues; no locks, allocation, OS signalling or phase search
 // in process(). Missed realtime deadlines produce exact delayed dry tiles.
 class Engine {
 public:
@@ -85,7 +87,7 @@ public:
     int frameSize() const noexcept {return frameN;}
     std::atomic<std::uint64_t> accepted{0},skipped{0},late{0};
 private:
-    static constexpr std::uint64_t capacity=8;
+    static constexpr std::uint64_t capacity=16;
     Planner planner;
     std::array<Job,capacity> jobs;
     std::array<Plan,capacity> plans;
@@ -98,7 +100,11 @@ private:
     std::uint64_t epoch=1,revision=1,position=0;
     std::uint64_t activeSlot=0;
     bool active=false,activeAccepted=false;
-    int frameN=0,guard=0,latencyN=0,ringN=0;
+    int frameN=0,maximumN=0,minimumN=0,probeN=0,guard=0,latencyN=0,ringN=0;
+    struct Span {std::uint64_t start=0;int length=0;};
+    std::array<Span,32> spans{};
+    std::uint64_t spanWrite=0,spanRead=0,nextStart=0,playbackStart=0,playbackEnd=0;
+    int boundaryLength() const noexcept;
     Settings settings;
     Report current;
     Stereo inputAt(std::int64_t) const noexcept;

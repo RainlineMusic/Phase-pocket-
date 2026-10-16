@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PLUGIN_VERSION: "0.1.0"
+  PLUGIN_VERSION: "0.1.1"
   PHASE_LICENSE_API_URL: ${{ vars.PHASE_LICENSE_API_URL }}
 
 jobs:
@@ -135,13 +135,13 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: PhasePocket-v0.1.0-macOS-Universal-VST3
-          path: PhasePocket-v0.1.0-macOS-Universal-VST3.zip
+          name: PhasePocket-v0.1.1-macOS-Universal-VST3
+          path: PhasePocket-v0.1.1-macOS-Universal-VST3.zip
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
-          name: PhasePocket-v0.1.0-macOS-Universal-AAX-Developer
-          path: PhasePocket-v0.1.0-macOS-Universal-AAX-Developer.zip
+          name: PhasePocket-v0.1.1-macOS-Universal-AAX-Developer
+          path: PhasePocket-v0.1.1-macOS-Universal-AAX-Developer.zip
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
@@ -213,13 +213,13 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: PhasePocket-v0.1.0-Windows-x64-VST3
-          path: PhasePocket-v0.1.0-Windows-x64-VST3.zip
+          name: PhasePocket-v0.1.1-Windows-x64-VST3
+          path: PhasePocket-v0.1.1-Windows-x64-VST3.zip
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
-          name: PhasePocket-v0.1.0-Windows-x64-AAX-Developer
-          path: PhasePocket-v0.1.0-Windows-x64-AAX-Developer.zip
+          name: PhasePocket-v0.1.1-Windows-x64-AAX-Developer
+          path: PhasePocket-v0.1.1-Windows-x64-AAX-Developer.zip
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
